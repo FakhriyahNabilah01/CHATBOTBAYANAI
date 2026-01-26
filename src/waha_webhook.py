@@ -92,9 +92,17 @@ async def waha_webhook(req: Request):
         return {"ok": True}
 
     # pakai chat_id jadi session_id biar state "lanjut" per user WA jalan
-    buf = StringIO()
-    with redirect_stdout(buf):
-        controller(text, session_id=str(chat_id))
+    try:
+        buf = StringIO()
+        with redirect_stdout(buf):
+            ret = controller(text, session_id=str(chat_id))
+
+        # prioritas return string; fallback ke print output
+        reply_raw = ret if isinstance(ret, str) and ret.strip() else buf.getvalue()
+        reply = clean_output(reply_raw or "")
+    except Exception as e:
+        reply = f"Maaf, sistem error: {type(e).__name__}: {e}"
+
 
     reply = clean_output(buf.getvalue())
     if not reply:
