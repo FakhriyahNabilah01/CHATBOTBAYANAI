@@ -10,7 +10,7 @@ from src.controller import controller
 
 app = FastAPI()
 
-WAHA_BASE_URL = os.getenv("WAHA_BASE_URL", "http://localhost:3000").rstrip("/")
+WAHA_BASE_URL = os.getenv("WAHA_BASE_URL", "http://localhost:3001").rstrip("/")
 WAHA_API_KEY = os.getenv("WAHA_API_KEY", "")
 WAHA_SESSION = os.getenv("WAHA_SESSION", "default")
 WEBHOOK_TOKEN = os.getenv("WEBHOOK_TOKEN", "")  # bebas (buat security)
