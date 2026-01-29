@@ -3,6 +3,14 @@
 
 import streamlit as st
 
+import os
+import sys
+import io
+import uuid
+from contextlib import redirect_stdout, redirect_stderr
+from typing import Tuple
+
+
 # ================================
 # PAGE CONFIG
 # ================================
@@ -34,12 +42,6 @@ if st.sidebar.button("Logout"):
     st.stop()
 
 
-import os
-import sys
-import io
-import uuid
-from contextlib import redirect_stdout, redirect_stderr
-from typing import Tuple
 
 # Pastikan import modul di folder src bisa jalan
 SRC_DIR = os.path.dirname(__file__)
@@ -47,7 +49,7 @@ if SRC_DIR not in sys.path:
     sys.path.insert(0, SRC_DIR)
 
 # Import controller utama kamu
-from controller import controller  # pastikan file: src/controller.py
+from src.controller import controller  # pastikan file: src/controller.py
 
 
 # ----------------------------
