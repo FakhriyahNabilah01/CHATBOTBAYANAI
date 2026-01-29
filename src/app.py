@@ -1,14 +1,45 @@
 # src/app.py
 # Jalankan: streamlit run src/app.py
 
+import streamlit as st
+
+# ================================
+# PAGE CONFIG
+# ================================
+st.set_page_config(
+    page_title="Chatbot Kana AI",
+    page_icon="🤖",
+    layout="wide"
+)
+
+# ================================
+# GATE LOGIN GOOGLE
+# ================================
+if not st.user.is_logged_in:
+    st.title("🔐 Login terlebih dahulu")
+    st.write("Silakan login dengan akun Google untuk menggunakan chatbot.")
+
+    if st.button("Login dengan Google"):
+        st.login()   # pakai config dari Secrets
+
+    st.stop()  # HENTIKAN APP DI SINI kalau belum login
+
+# ================================
+# USER SUDAH LOGIN
+# ================================
+st.sidebar.success(f"👤 Login sebagai:\n{st.user.email}")
+
+if st.sidebar.button("Logout"):
+    st.logout()
+    st.stop()
+
+
 import os
 import sys
 import io
 import uuid
 from contextlib import redirect_stdout, redirect_stderr
 from typing import Tuple
-
-import streamlit as st
 
 # Pastikan import modul di folder src bisa jalan
 SRC_DIR = os.path.dirname(__file__)

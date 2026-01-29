@@ -25,19 +25,35 @@ def _headers():
 
 
 def send_text(chat_id: str, text: str):
-    # WAHA sendText: {session, chatId, text} :contentReference[oaicite:1]{index=1}
+    """
+    WAHA sendText payload:
+    {session, chatId, text}
+    """
     url = f"{WAHA_BASE_URL}/api/sendText"
     payload = {"session": WAHA_SESSION, "chatId": chat_id, "text": text}
     r = requests.post(url, headers=_headers(), json=payload, timeout=60)
-    r.raise_for_status()
+
+    # Biar kelihatan jelas kalau WAHA nolak (mis. session belum WORKING)
+    try:
+        r.raise_for_status()
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"WAHA sendText failed: {e} | status={getattr(r, 'status_code', '-')}, body={getattr(r, 'text', '-')}",
+        )
+
     return r.json()
 
 
 def clean_output(s: str) -> str:
     # buang noise debug biar jawaban WA rapi
     out_lines = []
-    for line in s.splitlines():
-        if line.startswith("[DEBUG]") or line.startswith("[DEDUP") or "Received notification" in line:
+    for line in (s or "").splitlines():
+        if (
+            line.startswith("[DEBUG]")
+            or line.startswith("[DEDUP")
+            or "Received notification" in line
+        ):
             continue
         out_lines.append(line.rstrip())
     out = "\n".join(out_lines).strip()
@@ -46,6 +62,7 @@ def clean_output(s: str) -> str:
 
 
 def split_message(s: str, max_len: int):
+    s = s or ""
     if len(s) <= max_len:
         return [s]
     parts = []
@@ -97,16 +114,19 @@ async def waha_webhook(req: Request):
         with redirect_stdout(buf):
             ret = controller(text, session_id=str(chat_id))
 
-        # prioritas return string; fallback ke print output
+        # ✅ PRIORITAS: return string dari controller
+        # ✅ FALLBACK: kalau controller print, ambil dari stdout buffer
         reply_raw = ret if isinstance(ret, str) and ret.strip() else buf.getvalue()
-        reply = clean_output(reply_raw or "")
+        reply = clean_output(reply_raw)
+
     except Exception as e:
         reply = f"Maaf, sistem error: {type(e).__name__}: {e}"
 
-
-    reply = clean_output(buf.getvalue())
     if not reply:
         reply = "Maaf, aku belum nemu jawaban yang pas. Coba tanya dengan kata lain ya."
+
+    print("DEBUG_REPLY_LEN:", len(reply))
+    print("DEBUG_REPLY_PREVIEW:", reply[:200])
 
     for part in split_message(reply, MAX_WA_CHARS):
         send_text(str(chat_id), part)
