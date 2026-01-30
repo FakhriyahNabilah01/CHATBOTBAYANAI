@@ -22,12 +22,26 @@ def _get_worksheet():
     if not sheet_name:
         raise RuntimeError("GOOGLE_SHEET_NAME belum diisi di Secrets.")
 
-    sa_info = st.secrets["GOOGLE_SHEETS_SERVICE_ACCOUNT"]
+    # Parse JSON service account
+    try:
+        if isinstance(sa_raw, str):
+            sa_info = json.loads(sa_raw)
+        else:
+            sa_info = sa_raw
+    except Exception as e:
+        raise RuntimeError(f"Service Account JSON invalid: {e}")
+
+    # Validasi field penting
+    required = ["client_email", "private_key", "token_uri"]
+    missing = [k for k in required if k not in sa_info]
+    if missing:
+        raise RuntimeError(f"Service Account missing fields: {missing}")
 
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive",
     ]
+
     creds = Credentials.from_service_account_info(sa_info, scopes=scopes)
     gc = gspread.authorize(creds)
 
