@@ -22,7 +22,7 @@ def _get_worksheet():
     if not sheet_name:
         raise RuntimeError("GOOGLE_SHEET_NAME belum diisi di Secrets.")
 
-    sa_info = json.loads(sa_raw)
+    sa_info = st.secrets["GOOGLE_SHEETS_SERVICE_ACCOUNT"]
 
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
