@@ -18,9 +18,9 @@ def _get_worksheet():
     if not sa_raw:
         raise RuntimeError("GOOGLE_SHEETS_SERVICE_ACCOUNT belum diisi di Secrets.")
 
-    sheet_name = st.secrets.get("GOOGLE_SHEET_NAME", "")
+    sheet_name = st.secrets.get("GOOGLE_SHEETS_NAME", "")
     if not sheet_name:
-        raise RuntimeError("GOOGLE_SHEET_NAME belum diisi di Secrets.")
+        raise RuntimeError("GOOGLE_SHEETS_NAME belum diisi di Secrets.")
 
     sa_info = json.loads(sa_raw)
 
