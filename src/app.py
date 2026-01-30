@@ -10,6 +10,10 @@ from typing import Tuple
 
 import streamlit as st
 
+SRC_DIR = os.path.dirname(__file__)
+if SRC_DIR not in sys.path:
+    sys.path.insert(0, SRC_DIR)
+
 # ================================
 # PAGE CONFIG (HANYA SEKALI!)
 # ================================
@@ -55,7 +59,7 @@ if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
 # Import controller utama kamu (pakai src.)
-from src.controller import controller
+# from src.controller import controller
 
 
 # ----------------------------
