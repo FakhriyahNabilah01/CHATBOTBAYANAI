@@ -39,13 +39,7 @@ if st.sidebar.button("Logout"):
     st.logout()
     st.stop()
 
-from src.history_store_sheets import (
-    get_user_id,
-    save_history,
-    load_history,
-    clear_history
-)
-
+from src.history_store_sheets import get_user_id, save_history, load_history, clear_history
 from src.controller import controller
 
 # ambil identitas user yang sedang login
