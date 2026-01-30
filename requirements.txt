@@ -7,3 +7,5 @@ fastapi
 uvicorn
 requests
 streamlit[auth]
+gspread
+google-auth

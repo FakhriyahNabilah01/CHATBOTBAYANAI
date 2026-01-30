@@ -39,6 +39,19 @@ if st.sidebar.button("Logout"):
     st.logout()
     st.stop()
 
+from src.history_store_sheets import (
+    get_user_id,
+    save_history,
+    load_history,
+    clear_history
+)
+
+from src.controller import controller
+
+# ambil identitas user yang sedang login
+user_id = get_user_id()
+user_email = st.user.email or ""
+
 # ================================
 # FIX PATH UNTUK STREAMLIT CLOUD
 # - Tambahkan ROOT repo (bukan folder src) ke sys.path
@@ -189,6 +202,14 @@ if prompt:
     with st.chat_message("assistant", avatar="🕌"):
         with st.spinner("Mencari ayat & menyusun jawaban..."):
             content, debug = _capture_controller_output(final_prompt, st.session_state.session_id)
+
+        save_history(
+            user_id=user_id,
+            email=user_email,
+            query=final_prompt,
+            answer=content,
+            session_id=st.session_state.session_id
+             )
 
         st.markdown(f"<div class='chat-output'>{content}</div>", unsafe_allow_html=True)
 
