@@ -131,3 +131,4 @@ def clear_history(user_id: str) -> int:
         ws.append_rows(kept, value_input_option="RAW")
 
     return removed
+
