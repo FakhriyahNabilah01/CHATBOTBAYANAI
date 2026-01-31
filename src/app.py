@@ -43,6 +43,28 @@ if st.sidebar.button("Logout"):
     st.logout()
     st.stop()
 
+    with st.sidebar:
+     st.markdown("### 🕘 History Saya")
+
+    if st.button("🧹 Hapus history saya"):
+        n = clear_history(user_id)
+        st.success(f"Berhasil hapus {n} history.")
+        st.rerun()
+
+    items = load_history(user_id, limit=10)
+    if items:
+        for idx, it in enumerate(items):
+            q = (it.get("query") or "").strip()
+            if not q:
+                continue
+            label = q[:35] + ("..." if len(q) > 35 else "")
+            if st.button(label, key=f"h_{idx}"):
+                st.session_state["prefill_prompt"] = q
+                st.rerun()
+    else:
+        st.caption("Belum ada history.")
+  
+
 from history_store_sheets import get_user_id, save_history, load_history, clear_history
 from controller import controller
 

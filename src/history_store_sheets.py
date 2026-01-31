@@ -10,35 +10,20 @@ import streamlit as st
 def _get_worksheet():
     """
     Connect ke Google Sheets pakai Service Account dari Streamlit Secrets.
-    Support 2 format Secrets:
-    1) String JSON (triple quotes)
-    2) TOML object (dict)
+    Return worksheet pertama (sheet/tab pertama).
     """
     import gspread
     from google.oauth2.service_account import Credentials
 
-    # ---- ambil service account dari secrets (bisa string atau dict)
-    sa_val = st.secrets.get("GOOGLE_SHEETS_SERVICE_ACCOUNT", None)
-    if sa_val is None or sa_val == "":
-        raise RuntimeError(
-            f"GOOGLE_SHEETS_SERVICE_ACCOUNT belum diisi di Secrets. Keys yang terbaca: {list(st.secrets.keys())}"
-        )
+    sa_raw = st.secrets.get("GOOGLE_SHEETS_SERVICE_ACCOUNT", "")
+    if not sa_raw:
+        raise RuntimeError("GOOGLE_SHEETS_SERVICE_ACCOUNT belum diisi di Streamlit Secrets.")
 
-    # ---- sheet name (kita support 2 nama biar gak mismatch)
-    sheet_name = (
-        st.secrets.get("GOOGLE_SHEET_NAME", "")
-        or st.secrets.get("GOOGLE_SHEETS_NAME", "")
-    )
+    sheet_name = st.secrets.get("GOOGLE_SHEET_NAME", "")
     if not sheet_name:
-        raise RuntimeError("Sheet name belum diisi. Pakai GOOGLE_SHEET_NAME di Secrets.")
+        raise RuntimeError("GOOGLE_SHEET_NAME belum diisi di Streamlit Secrets.")
 
-    # ---- parse service account
-    if isinstance(sa_val, str):
-        sa_info = json.loads(sa_val)   # format triple quotes string JSON
-    elif isinstance(sa_val, dict):
-        sa_info = dict(sa_val)         # format toml object
-    else:
-        raise RuntimeError(f"Format GOOGLE_SHEETS_SERVICE_ACCOUNT tidak dikenali: {type(sa_val)}")
+    sa_info = json.loads(sa_raw)
 
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
@@ -48,14 +33,14 @@ def _get_worksheet():
     gc = gspread.authorize(creds)
 
     sh = gc.open(sheet_name)
-    return sh.sheet1
-
+    ws = sh.sheet1  # worksheet/tab pertama
+    return ws
 
 
 def get_user_id() -> str:
     """
-    Ambil ID unik user dari Google login.
-    Prioritas: st.user.sub -> email -> anonymous
+    ID user untuk memisahkan history per akun.
+    Prioritas: sub (unik) -> email.
     """
     sub = getattr(st.user, "sub", None)
     email = getattr(st.user, "email", None)
@@ -67,20 +52,26 @@ def get_user_id() -> str:
     return "anonymous"
 
 
-def ensure_header(ws) -> None:
+def ensure_header() -> None:
     """
-    Pastikan header ada di baris pertama.
+    Pastikan header baris pertama ada:
+    created_at | user_id | email | query | answer | session_id
+    Kalau sudah ada, tidak ngapa-ngapain.
     """
-    header = ["created_at", "user_id", "email", "query", "answer", "session_id"]
-    values = ws.get_all_values()
+    ws = _get_worksheet()
+    expected = ["created_at", "user_id", "email", "query", "answer", "session_id"]
 
-    if values and values[0] == header:
+    values = ws.get_all_values()
+    if values and values[0] == expected:
         return
 
+    # Kalau sheet kosong, tulis header
     if not values:
-        ws.append_row(header, value_input_option="RAW")
-    else:
-        ws.insert_row(header, index=1)
+        ws.append_row(expected, value_input_option="RAW")
+        return
+
+    # Kalau ada data tapi header tidak sesuai, tetap tambahkan header di baris 1 (lebih aman)
+    ws.insert_row(expected, index=1)
 
 
 def save_history(
@@ -90,34 +81,42 @@ def save_history(
     answer: str,
     session_id: Optional[str] = None
 ) -> None:
+    """
+    Simpan 1 item history ke Google Sheets.
+    """
+    ensure_header()
     ws = _get_worksheet()
-    ensure_header(ws)
 
-    row = [
-        datetime.now(timezone.utc).isoformat(),
-        str(user_id),
-        str(email),
-        str(query),
-        str(answer),
-        str(session_id or ""),
-    ]
+    created_at = datetime.now(timezone.utc).isoformat()
+    row = [created_at, user_id, email, query, answer, session_id or ""]
     ws.append_row(row, value_input_option="RAW")
 
 
 def load_history(user_id: str, limit: int = 20) -> List[Dict[str, Any]]:
+    """
+    Ambil history milik user tertentu (paling baru dulu).
+    Karena Sheets tidak punya query seperti DB, kita filter di Python.
+    """
+    ensure_header()
     ws = _get_worksheet()
-    ensure_header(ws)
 
-    rows = ws.get_all_records()
-    uid = str(user_id)
-    mine = [r for r in rows if str(r.get("user_id", "")) == uid]
+    rows = ws.get_all_records()  # list[dict] berdasarkan header
+    # Filter milik user
+    mine = [r for r in rows if str(r.get("user_id", "")) == str(user_id)]
+
+    # Urutkan terbaru
     mine.sort(key=lambda r: r.get("created_at", ""), reverse=True)
+
     return mine[:limit]
 
 
 def clear_history(user_id: str) -> int:
+    """
+    Hapus history user (cara aman: rebuild sheet tanpa rows milik user).
+    Return jumlah yang terhapus.
+    """
+    ensure_header()
     ws = _get_worksheet()
-    ensure_header(ws)
 
     values = ws.get_all_values()
     if not values:
@@ -128,15 +127,17 @@ def clear_history(user_id: str) -> int:
 
     kept = []
     removed = 0
-    uid = str(user_id)
+    user_id_str = str(user_id)
 
     for row in data:
-        # user_id ada di kolom index 1
-        if len(row) > 1 and str(row[1]) == uid:
+        # Pastikan panjang row aman
+        row_user_id = row[1] if len(row) > 1 else ""
+        if str(row_user_id) == user_id_str:
             removed += 1
         else:
             kept.append(row)
 
+    # Clear dan tulis ulang
     ws.clear()
     ws.append_row(header, value_input_option="RAW")
     if kept:
