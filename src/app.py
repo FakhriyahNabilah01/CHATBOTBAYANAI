@@ -10,6 +10,12 @@ from typing import Tuple
 
 import streamlit as st
 
+if "session_id" not in st.session_state:
+    st.session_state.session_id = str(uuid.uuid4())
+
+if "messages" not in st.session_state:
+    st.session_state.messages = []   # list chat yang lagi aktif
+
 # ================================
 # FIX PATH (biar import src.* aman di Cloud & lokal)
 # ================================
@@ -60,6 +66,13 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown("### 🕘 History Saya")
+
+    # ✅ NEW CHAT: reset percakapan yang sedang aktif
+    if st.button("➕ New chat"):
+        st.session_state["session_id"] = str(uuid.uuid4())
+        st.session_state["messages"] = []
+        st.session_state["prefill_prompt"] = ""
+        st.rerun()
 
     if st.button("🧹 Hapus history saya"):
         n = clear_history(user_id)
