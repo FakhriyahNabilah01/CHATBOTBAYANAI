@@ -10,9 +10,12 @@ from typing import Tuple
 
 import streamlit as st
 
-SRC_DIR = os.path.dirname(__file__)
-if SRC_DIR not in sys.path:
-    sys.path.insert(0, SRC_DIR)
+# ================================
+# FIX PATH (biar import src.* aman di Cloud & lokal)
+# ================================
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
 
 # ================================
 # PAGE CONFIG (HANYA SEKALI!)
@@ -36,22 +39,39 @@ if not st.user.is_logged_in:
     st.stop()
 
 # ================================
-# USER SUDAH LOGIN
+# IMPORT (setelah login aman)
 # ================================
-st.sidebar.success(f"👤 Login sebagai:\n{st.user.email}")
-if st.sidebar.button("Logout"):
-    st.logout()
-    st.stop()
+from src.history_store_sheets import get_user_id, save_history, load_history, clear_history
+from src.controller import controller
 
-    with st.sidebar:
-     st.markdown("### 🕘 History Saya")
+# ambil identitas user yang sedang login
+user_id = get_user_id()
+user_email = st.user.email or ""
+
+# ================================
+# SIDEBAR: info user + logout + history
+# ================================
+with st.sidebar:
+    st.success(f"👤 Login sebagai:\n{st.user.email}")
+
+    if st.button("Logout"):
+        st.logout()
+        st.stop()
+
+    st.markdown("---")
+    st.markdown("### 🕘 History Saya")
 
     if st.button("🧹 Hapus history saya"):
         n = clear_history(user_id)
         st.success(f"Berhasil hapus {n} history.")
         st.rerun()
 
-    items = load_history(user_id, limit=10)
+    try:
+        items = load_history(user_id, limit=10)
+    except Exception as e:
+        st.error(f"Gagal load history: {e}")
+        items = []
+
     if items:
         for idx, it in enumerate(items):
             q = (it.get("query") or "").strip()
@@ -63,35 +83,41 @@ if st.sidebar.button("Logout"):
                 st.rerun()
     else:
         st.caption("Belum ada history.")
-  
-
-from history_store_sheets import get_user_id, save_history, load_history, clear_history
-from controller import controller
-
-# ambil identitas user yang sedang login
-user_id = get_user_id()
-user_email = st.user.email or ""
 
 # ================================
-# FIX PATH UNTUK STREAMLIT CLOUD
-# - Tambahkan ROOT repo (bukan folder src) ke sys.path
-# ================================
-ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if ROOT_DIR not in sys.path:
-    sys.path.insert(0, ROOT_DIR)
-
-# Import controller utama kamu (pakai src.)
-# from src.controller import controller
-
-
-# ----------------------------
 # Helpers
-# ----------------------------
+# ================================
+def _split_debug(text: str) -> Tuple[str, str]:
+    debug_lines = []
+    content_lines = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("[") and "]" in stripped[:30]:
+            debug_lines.append(line)
+        else:
+            content_lines.append(line)
+    return "\n".join(content_lines).strip(), "\n".join(debug_lines).strip()
+
+
+def _beautify_output(text: str) -> str:
+    if not text:
+        return text
+
+    text = text.replace("═" * 60, "---")
+
+    import re
+    text = re.sub(r"\*\*Ayat\s+(\d+)\s+–\s+(.+?)\*\*", r"📖 **Surat \2 ayat \1**", text)
+
+    text = text.replace("**Artinya:**", "📝 **Artinya:**")
+    text = text.replace("**Kategori:**", "🧩 **Kategori:**")
+    text = text.replace("**Tafsir Kemenag (Tahlili):**", "🟩 **Tafsir Kemenag (Tahlili):**")
+    text = text.replace("**Tafsir Kemenag (Wajiz):**", "🟦 **Tafsir Kemenag (Wajiz):**")
+    text = text.replace("**Tafsir Buya Hamka:**", "🟥 **Tafsir Buya Hamka:**")
+
+    return text
+
+
 def _capture_controller_output(user_text: str, session_id: str) -> Tuple[str, str]:
-    """
-    Jalankan controller() sambil menangkap semua print/sys.stdout.
-    Return: (content_text, debug_text)
-    """
     buf_out = io.StringIO()
     buf_err = io.StringIO()
 
@@ -115,51 +141,12 @@ def _capture_controller_output(user_text: str, session_id: str) -> Tuple[str, st
 
     content, debug = _split_debug(raw)
     content = _beautify_output(content)
-
     return content, debug
 
 
-def _split_debug(text: str) -> Tuple[str, str]:
-    debug_lines = []
-    content_lines = []
-
-    for line in text.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("[") and "]" in stripped[:30]:
-            debug_lines.append(line)
-        else:
-            content_lines.append(line)
-
-    content = "\n".join(content_lines).strip()
-    debug = "\n".join(debug_lines).strip()
-    return content, debug
-
-
-def _beautify_output(text: str) -> str:
-    if not text:
-        return text
-
-    text = text.replace("═" * 60, "---")
-
-    import re
-    text = re.sub(
-        r"\*\*Ayat\s+(\d+)\s+–\s+(.+?)\*\*",
-        r"📖 **Surat \2 ayat \1**",
-        text
-    )
-
-    text = text.replace("**Artinya:**", "📝 **Artinya:**")
-    text = text.replace("**Kategori:**", "🧩 **Kategori:**")
-    text = text.replace("**Tafsir Kemenag (Tahlili):**", "🟩 **Tafsir Kemenag (Tahlili):**")
-    text = text.replace("**Tafsir Kemenag (Wajiz):**", "🟦 **Tafsir Kemenag (Wajiz):**")
-    text = text.replace("**Tafsir Buya Hamka:**", "🟥 **Tafsir Buya Hamka:**")
-
-    return text
-
-
-# ----------------------------
+# ================================
 # UI
-# ----------------------------
+# ================================
 CUSTOM_CSS = """
 <style>
 .block-container { max-width: 820px; padding-top: 28px; }
@@ -186,15 +173,13 @@ st.markdown(
 # Session init
 if "session_id" not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
-
 if "messages" not in st.session_state:
     st.session_state.messages = []
-
 if "show_debug" not in st.session_state:
     st.session_state.show_debug = False
 
-if "preferred_sources" not in st.session_state:
-    st.session_state.preferred_sources = ["all"]
+# Prefill prompt dari history
+prefill = st.session_state.pop("prefill_prompt", None)
 
 # Render message history
 for msg in st.session_state.messages:
@@ -202,39 +187,36 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"], avatar=avatar):
         st.markdown(f"<div class='chat-output'>{msg['content']}</div>", unsafe_allow_html=True)
 
-        if st.session_state.show_debug and msg.get("debug"):
-            with st.expander("Lihat debug"):
-                st.code(msg["debug"], language="text")
+prompt = st.chat_input(
+    "Tanyakan sesuatu... (contoh: 'gambaran hisab' atau 'kiamat')",
+    key="chat_input"
+)
 
-prompt = st.chat_input("Tanyakan sesuatu... (contoh: 'gambaran hisab' atau 'kiamat')")
+# kalau user klik history, kita auto kirim promptnya
+if prefill:
+    prompt = prefill
 
 if prompt:
-    inject = ""
-    if st.session_state.preferred_sources and "all" not in st.session_state.preferred_sources:
-        inject = " " + " ".join(st.session_state.preferred_sources)
-
-    final_prompt = (prompt + inject).strip()
-
-    st.session_state.messages.append({"role": "user", "content": final_prompt})
+    st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user", avatar="🧑‍💻"):
-        st.markdown(final_prompt)
+        st.markdown(prompt)
 
     with st.chat_message("assistant", avatar="🕌"):
         with st.spinner("Mencari ayat & menyusun jawaban..."):
-            content, debug = _capture_controller_output(final_prompt, st.session_state.session_id)
+            content, debug = _capture_controller_output(prompt, st.session_state.session_id)
 
-        save_history(
-            user_id=user_id,
-            email=user_email,
-            query=final_prompt,
-            answer=content,
-            session_id=st.session_state.session_id
-             )
+        # simpan history SETELAH dapat jawaban
+        try:
+            save_history(
+                user_id=user_id,
+                email=user_email,
+                query=prompt,
+                answer=content,
+                session_id=st.session_state.session_id
+            )
+        except Exception as e:
+            st.warning(f"History gagal disimpan: {e}")
 
         st.markdown(f"<div class='chat-output'>{content}</div>", unsafe_allow_html=True)
 
-        if st.session_state.show_debug and debug:
-            with st.expander("Lihat debug"):
-                st.code(debug, language="text")
-
-    st.session_state.messages.append({"role": "assistant", "content": content, "debug": debug})
+    st.session_state.messages.append({"role": "assistant", "content": content})
