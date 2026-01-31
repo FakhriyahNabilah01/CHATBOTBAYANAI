@@ -10,55 +10,36 @@ import streamlit as st
 def _get_worksheet():
     """
     Connect ke Google Sheets pakai Service Account dari Streamlit Secrets.
-
-    Secrets yang dibutuhkan:
-      - GOOGLE_SHEET_NAME (string)
-      - GOOGLE_SHEETS_SERVICE_ACCOUNT (string JSON atau object/dict)
+    Support 2 format Secrets:
+    1) String JSON (triple quotes)
+    2) TOML object (dict)
     """
     import gspread
     from google.oauth2.service_account import Credentials
 
-    # --- Read secrets ---
-    sa_raw = st.secrets.get("GOOGLE_SHEETS_SERVICE_ACCOUNT", None)
-    if not sa_raw:
-        raise RuntimeError("GOOGLE_SHEETS_SERVICE_ACCOUNT belum diisi di Secrets.")
-
-    sheet_name = st.secrets.get("GOOGLE_SHEET_NAME", None)
-    if not sheet_name:
-        raise RuntimeError("GOOGLE_SHEET_NAME belum diisi di Secrets.")
-
-    # --- Parse service account (robust) ---
-    sa_info = None
-    try:
-        # Case 1: already a dict-like object
-        if isinstance(sa_raw, dict):
-            sa_info = sa_raw
-        else:
-            # Case 2: treat as string JSON
-            sa_text = str(sa_raw).strip()
-
-            # anti "Extra data" dari paste dobel -> ambil dari '{' pertama sampai '}' terakhir
-            first = sa_text.find("{")
-            last = sa_text.rfind("}")
-            if first != -1 and last != -1 and last > first:
-                sa_text = sa_text[first:last + 1].strip()
-
-            sa_info = json.loads(sa_text)
-
-    except Exception as e:
+    # ---- ambil service account dari secrets (bisa string atau dict)
+    sa_val = st.secrets.get("GOOGLE_SHEETS_SERVICE_ACCOUNT", None)
+    if sa_val is None or sa_val == "":
         raise RuntimeError(
-            "Service Account JSON invalid. Pastikan di Secrets kamu hanya ada 1 JSON utuh "
-            "di dalam triple quotes.\n"
-            f"Detail: {e}"
+            f"GOOGLE_SHEETS_SERVICE_ACCOUNT belum diisi di Secrets. Keys yang terbaca: {list(st.secrets.keys())}"
         )
 
-    # --- Validate required fields ---
-    required = ["client_email", "private_key", "token_uri"]
-    missing = [k for k in required if k not in sa_info]
-    if missing:
-        raise RuntimeError(f"Service Account missing fields: {missing}")
+    # ---- sheet name (kita support 2 nama biar gak mismatch)
+    sheet_name = (
+        st.secrets.get("GOOGLE_SHEET_NAME", "")
+        or st.secrets.get("GOOGLE_SHEETS_NAME", "")
+    )
+    if not sheet_name:
+        raise RuntimeError("Sheet name belum diisi. Pakai GOOGLE_SHEET_NAME di Secrets.")
 
-    # --- Authorize ---
+    # ---- parse service account
+    if isinstance(sa_val, str):
+        sa_info = json.loads(sa_val)   # format triple quotes string JSON
+    elif isinstance(sa_val, dict):
+        sa_info = dict(sa_val)         # format toml object
+    else:
+        raise RuntimeError(f"Format GOOGLE_SHEETS_SERVICE_ACCOUNT tidak dikenali: {type(sa_val)}")
+
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive",
@@ -66,9 +47,9 @@ def _get_worksheet():
     creds = Credentials.from_service_account_info(sa_info, scopes=scopes)
     gc = gspread.authorize(creds)
 
-    # Open file by name, use first worksheet
-    sh = gc.open(str(sheet_name))
+    sh = gc.open(sheet_name)
     return sh.sheet1
+
 
 
 def get_user_id() -> str:
