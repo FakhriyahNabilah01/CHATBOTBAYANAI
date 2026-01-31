@@ -2,6 +2,7 @@
 import json
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
+from collections.abc import Mapping
 
 import streamlit as st
 
@@ -24,18 +25,22 @@ def _get_worksheet():
     if not sheet_name:
         raise RuntimeError("GOOGLE_SHEETS_NAME belum diisi di Streamlit Secrets.")
 
-    # Streamlit Secrets bisa mengembalikan dict (kalau pakai [SECTION])
-    # atau string JSON (kalau pakai triple quotes).
-    if isinstance(sa_raw, dict):
-        sa_info = sa_raw
+    # Streamlit Secrets bisa mengembalikan Mapping (dict-like) kalau pakai [SECTION],
+    # atau string JSON kalau disimpan sebagai string.
+    if isinstance(sa_raw, Mapping):
+        sa_info = dict(sa_raw)
     else:
         try:
             sa_info = json.loads(sa_raw)
         except Exception as e:
             raise RuntimeError(
                 "GOOGLE_SHEETS_SERVICE_ACCOUNT formatnya bukan JSON yang valid. "
-                "Pastikan kamu pakai format TOML yang benar di Secrets."
+                "Kalau kamu pakai [GOOGLE_SHEETS_SERVICE_ACCOUNT] di Secrets, pastikan itu SECTION TOML yang benar."
             ) from e
+
+    # Kadang private_key kebaca sebagai literal "\\n" — harus jadi newline beneran
+    if "private_key" in sa_info and isinstance(sa_info["private_key"], str):
+        sa_info["private_key"] = sa_info["private_key"].replace("\\n", "\n")
 
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
@@ -131,4 +136,3 @@ def clear_history(user_id: str) -> int:
         ws.append_rows(kept, value_input_option="RAW")
 
     return removed
-
