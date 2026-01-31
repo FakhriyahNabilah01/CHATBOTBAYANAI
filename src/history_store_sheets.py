@@ -17,13 +17,17 @@ def _get_worksheet():
 
     sa_raw = st.secrets.get("GOOGLE_SHEETS_SERVICE_ACCOUNT", "")
     if not sa_raw:
-        raise RuntimeError("GOOGLE_SHEETS_SERVICE_ACCOUNT belum diisi di Streamlit Secrets.")
+        raise RuntimeError("GOOGLE_SHEETS_SERVICE_ACCOUNT belum diisi di Secrets.")
+
 
     sheet_name = st.secrets.get("GOOGLE_SHEET_NAME", "")
     if not sheet_name:
         raise RuntimeError("GOOGLE_SHEET_NAME belum diisi di Streamlit Secrets.")
 
-    sa_info = json.loads(sa_raw)
+    if isinstance(sa_raw, dict):
+        sa_info = sa_raw
+    else:
+        sa_info = json.loads(sa_raw)
 
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
